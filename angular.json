@@ -5,7 +5,11 @@
   "projects": {
     "facial-expression-translator": {
       "projectType": "application",
-      "schematics": {},
+      "schematics": {
+        "@schematics/angular:component": {
+          "style": "css"
+        }
+      },
       "root": "",
       "sourceRoot": "src",
       "prefix": "app",
@@ -13,6 +17,11 @@
         "build": {
           "builder": "@angular-devkit/build-angular:browser",
           "options": {
+            "stylePreprocessorOptions": {
+              "includePaths": [
+                "src/styles"
+              ]
+            },
             "outputPath": "dist/facial-expression-translator",
             "index": "src/index.html",
             "main": "src/main.ts",
@@ -22,7 +31,12 @@
             "tsConfig": "tsconfig.app.json",
             "assets": [
               "src/favicon.ico",
-              "src/assets"
+              "src/assets",
+              {
+                "glob": "**/*",
+                "input": "src/assets/models",
+                "output": "/assets/models/"
+              }
             ],
             "styles": [
               "src/styles.css"
@@ -94,5 +108,8 @@
         }
       }
     }
+  },
+  "cli": {
+    "analytics": "e1cf6e7e-e637-4a16-94a7-3569800dfe3c"
   }
 }

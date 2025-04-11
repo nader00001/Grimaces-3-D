@@ -1,0 +1,1 @@
+canvas{transition:transform .5s ease}.face-container:hover canvas{transform:scale(1.02)}.expression-label{animation:pulse 2s infinite}@keyframes pulse{0%{opacity:.8}50%{opacity:1}to{opacity:.8}}
