@@ -613,33 +613,81 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
     this.clearEmotionEffects();
     this.resetBonesToNeutral();
 
-    if (this.availableAnimations[expression]) {
+    // Gérer les animations
+    if (expression === 'neutre') {
+      // Arrêter toutes les animations
+      if (this.currentAnimationAction) {
+        this.currentAnimationAction.stop();
+        this.currentAnimationAction = null;
+      }
+    } else if (this.availableAnimations[expression]) {
       this.playAnimation(expression);
     }
 
+    // Appliquer les transformations et effets
     this.applyBoneTransforms(expression);
     this.applySpecialEffects(expression);
     this.updateSkeleton();
   }
 
   private playAnimation(animationName: string): void {
-    if (this.currentAnimationAction) {
-      this.currentAnimationAction.stop();
-    }
-
-    const animation = this.availableAnimations[animationName];
-    if (animation && this.mixer) {
-      this.currentAnimationAction = this.mixer.clipAction(animation);
-      this.currentAnimationAction.play();
-
-      switch(animationName) {
-        case 'course':
-          this.currentAnimationAction.setEffectiveTimeScale(1.5);
-          break;
-        case 'dormir':
-          this.currentAnimationAction.setEffectiveTimeScale(0.8);
-          break;
+    try {
+      // Arrêter proprement l'animation en cours
+      if (this.currentAnimationAction) {
+        this.currentAnimationAction.stop();
+        this.currentAnimationAction = null;
       }
+
+      // Si on passe à neutre, on ne joue aucune animation
+      if (animationName === 'neutre') {
+        return;
+      }
+
+      const animation = this.availableAnimations[animationName];
+
+      if (animation && this.mixer) {
+        this.currentAnimationAction = this.mixer.clipAction(animation);
+
+        // Configurer la nouvelle animation
+        this.currentAnimationAction
+          .reset() // Réinitialiser l'animation
+          .setEffectiveTimeScale(1)
+          .setLoop(THREE.LoopRepeat, Infinity) // Par défaut en boucle infinie
+          .fadeIn(0.3) // Fondu d'entrée
+          .play();
+
+        // Configurations spécifiques
+        this.configureSpecificAnimations(animationName);
+
+      } else if (animationName !== 'neutre') {
+        console.warn(`Animation "${animationName}" non trouvée ou mixer non initialisé`);
+      }
+    } catch (error) {
+      console.error(`Erreur lors de la lecture de l'animation ${animationName}:`, error);
+    }
+  }
+
+  private configureSpecificAnimations(animationName: string): void {
+    if (!this.currentAnimationAction) return;
+
+    switch(animationName) {
+      case 'course':
+        this.currentAnimationAction
+          .setEffectiveTimeScale(1.5)
+          .setLoop(THREE.LoopRepeat, Infinity);
+        break;
+
+      case 'dormir':
+        this.currentAnimationAction
+          .setEffectiveTimeScale(0.8)
+          .setLoop(THREE.LoopRepeat, Infinity);
+        break;
+
+      case 'jouer':
+        this.currentAnimationAction
+          .setEffectiveTimeScale(1.2)
+          .setLoop(THREE.LoopPingPong, Infinity);
+        break;
     }
   }
 
@@ -690,12 +738,12 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
 
   private tryAlternativeBoneNames(expression: string, config: Record<string, BoneTransform>, missingBones: string[]): void {
     const boneNameVariations: Record<string, string[]> = {
-      'brow_L': ['browLeft', 'eyebrow_l', 'leftBrow'],
-      'brow_R': ['browRight', 'eyebrow_r', 'rightBrow'],
-      'eye_L': ['eyeLeft', 'leftEye', 'eye_l'],
-      'eye_R': ['eyeRight', 'rightEye', 'eye_r'],
-      'jaw': ['jaw', 'chin', 'mandible'],
-      'mouth': ['mouth', 'lips']
+      'brow_L': ['browLeft', 'eyebrow_l', 'leftBrow', 'brow.L', 'brow_Left'],
+      'brow_R': ['browRight', 'eyebrow_r', 'rightBrow', 'brow.R', 'brow_Right'],
+      'eyeLidUpper_L': ['upperLid_L', 'eyelidUpper_L', 'lidUpper_L', 'eyeLid.L', 'eyelidLeft'],
+      'eyeLidUpper_R': ['upperLid_R', 'eyelidUpper_R', 'lidUpper_R', 'eyeLid.R', 'eyelidRight'],
+      'jaw': ['jaw', 'chin', 'mandible', 'lowerJaw'],
+      'mouth': ['mouth', 'lips', 'oral', 'mouthCorner']
     };
 
     missingBones.forEach(boneType => {
@@ -703,20 +751,24 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
       for (const variation of variations) {
         if (this.facialBones[variation]) {
           const transform = config[boneType];
-          if (transform.rotation) {
-            this.facialBones[variation].bone.rotation.copy(transform.rotation);
-          }
-          if (transform.position) {
-            this.facialBones[variation].bone.position.copy(transform.position);
-          }
-          if (transform.scale) {
-            this.facialBones[variation].bone.scale.copy(transform.scale);
-          }
+          this.applyTransformToBone(this.facialBones[variation].bone, transform);
           console.log(`Used alternative bone ${variation} for ${boneType}`);
           break;
         }
       }
     });
+  }
+
+  private applyTransformToBone(bone: THREE.Bone, transform: BoneTransform): void {
+    if (transform.rotation) {
+      bone.rotation.copy(transform.rotation);
+    }
+    if (transform.position) {
+      bone.position.copy(transform.position);
+    }
+    if (transform.scale) {
+      bone.scale.copy(transform.scale);
+    }
   }
 
   private applySpecialEffects(expression: string): void {
@@ -756,28 +808,65 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
   }
 
   private addTears(): void {
-    for (let i = 0; i < 3; i++) {
-      const tear = this.createTearMesh();
-      tear.position.set(
-        -0.3 + Math.random() * 0.4,
-        -1.0 - Math.random() * 0.3,
-        1.1 + Math.random() * 0.2
+    // Vérifier si les os des yeux existent pour positionner correctement les larmes
+    const leftEye = this.findBone('eye_L') || this.findBone('leftEye');
+    const rightEye = this.findBone('eye_R') || this.findBone('rightEye');
+
+    const tearCount = 5; // Augmenter le nombre de larmes
+    const tearSize = 0.08; // Taille des larmes
+    const tearOpacity = 0.8; // Opacité des larmes
+
+    for (let i = 0; i < tearCount; i++) {
+      const tear = this.createTearMesh(tearSize, tearOpacity);
+
+      // Positionner les larmes sous les yeux si les os sont trouvés
+      if (leftEye && rightEye) {
+        const eyePosition = i % 2 === 0 ?
+          leftEye.getWorldPosition(new THREE.Vector3()) :
+          rightEye.getWorldPosition(new THREE.Vector3());
+
+        tear.position.set(
+          eyePosition.x + (Math.random() * 0.2 - 0.1),
+          eyePosition.y - 0.3 - (Math.random() * 0.2),
+          eyePosition.z + 0.1
+        );
+      } else {
+        // Position par défaut si les os des yeux ne sont pas trouvés
+        tear.position.set(
+          -0.3 + Math.random() * 0.6,
+          -1.0 - Math.random() * 0.3,
+          1.1 + Math.random() * 0.2
+        );
+      }
+
+      // Animation des larmes
+      (tear as any).velocity = new THREE.Vector3(
+        0,
+        -0.02 - Math.random() * 0.03,
+        0
       );
+
       this.scene.add(tear);
       this.tears.push(tear);
       this.currentEmotionEffects.push(tear);
     }
   }
 
-  private createTearMesh(): THREE.Mesh {
-    const geometry = new THREE.SphereGeometry(0.05, 16, 16);
+
+  private createTearMesh(size: number, opacity: number): THREE.Mesh {
+    // Utiliser une géométrie de larme plus réaliste (cône à la place d'une sphère)
+    const geometry = new THREE.ConeGeometry(size, size * 2, 8);
+    geometry.rotateX(Math.PI); // Orienter la pointe vers le bas
+
     const material = new THREE.MeshPhongMaterial({
-      color: 0x77ccff,
+      color: 0x99ddff, // Couleur plus claire pour les larmes
       transparent: true,
-      opacity: 0.7,
+      opacity: opacity,
       specular: 0x111111,
-      shininess: 50
+      shininess: 100,
+      refractionRatio: 0.8 // Ajouter un effet de réfraction
     });
+
     return new THREE.Mesh(geometry, material);
   }
 
@@ -872,6 +961,7 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
   }
 
   private updateParticles(): void {
+    // Mise à jour des systèmes de particules existants
     this.particleSystems.forEach(group => {
       group.children.forEach(particle => {
         particle.position.y += 0.01;
@@ -901,7 +991,32 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
         group.add(newParticle);
       }
     });
+
+    // Mise à jour des larmes
+    this.tears.forEach((tear, index) => {
+      if ((tear as any).velocity) {
+        tear.position.add((tear as any).velocity);
+
+        // Réduire progressivement l'opacité
+        if ((tear.material as THREE.Material & { opacity?: number }).opacity !== undefined) {
+          (tear.material as THREE.Material & { opacity: number }).opacity *= 0.97;
+        }
+
+        // Supprimer la larme si elle est trop transparente ou trop basse
+        if ((tear.material as THREE.Material & { opacity?: number }).opacity < 0.1 ||
+            tear.position.y < -3) {
+          this.scene.remove(tear);
+          this.tears.splice(index, 1);
+        }
+      }
+    });
+
+    // Ajouter de nouvelles larmes périodiquement si l'expression est toujours "triste"
+    if (this.expression === 'triste' && this.tears.length < 3 && Math.random() > 0.9) {
+      this.addTears();
+    }
   }
+
 
   private createRunningDust(): void {
     const dustParticles = new THREE.Group();
