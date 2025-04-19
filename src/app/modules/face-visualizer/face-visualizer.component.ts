@@ -145,7 +145,13 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
     'dormir': {
       'eye_L': { scale: new THREE.Vector3(1, 0.1, 1) },
       'eye_R': { scale: new THREE.Vector3(1, 0.1, 1) },
-      'head': { rotation: new THREE.Euler(0.2, 0, 0) }
+      'head': { rotation: new THREE.Euler(0.1, 0, 0) },
+      'jaw': { rotation: new THREE.Euler(-0.1, 0, 0) },
+      'brow_L': { rotation: new THREE.Euler(0.1, 0, 0) },
+      'brow_R': { rotation: new THREE.Euler(0.1, 0, 0) },
+      // Ajouter la configuration pour les pieds
+      'foot_L': { rotation: new THREE.Euler(0.2, 0, 0) }, // Rotation vers l'extérieur
+      'foot_R': { rotation: new THREE.Euler(0.2, 0, 0) }  // Rotation vers l'extérieur
     }
   };
 
@@ -349,14 +355,48 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
   private simulateBreathing(): void {
     const chest = this.findBone('chest') || this.findBone('spine');
     const head = this.findBone('head');
+    const leftFoot = this.findBone('leftFoot') || this.findBone('foot_L');
+    const rightFoot = this.findBone('rightFoot') || this.findBone('foot_R');
 
     if (chest && head) {
       const time = Date.now() * 0.001;
-      const breathAmount = Math.sin(time) * 0.02;
+      const breathAmount = Math.sin(time) * 0.01;
 
-      chest.position.y += breathAmount;
-      head.position.y += breathAmount * 0.5;
-      head.rotation.z = Math.sin(time * 0.3) * 0.05;
+      chest.position.y += breathAmount * 0.5;
+      head.position.y += breathAmount * 0.2;
+      head.rotation.z = Math.sin(time * 0.3) * 0.02;
+      head.rotation.x = 0.1 + Math.sin(time * 0.5) * 0.01;
+    }
+
+    // Animation des pieds pour qu'ils restent horizontaux
+    if (leftFoot && rightFoot) {
+      const time = Date.now() * 0.001;
+      const footMovement = Math.sin(time * 0.5) * 0.05;
+
+      leftFoot.rotation.x = 0.2 + footMovement;
+      rightFoot.rotation.x = 0.2 + footMovement;
+    }
+  }
+  private initFootBones(): void {
+    const leftFoot = this.findBone('leftFoot') || this.findBone('foot_L');
+    const rightFoot = this.findBone('rightFoot') || this.findBone('foot_R');
+
+    if (leftFoot && !this.facialBones['foot_L']) {
+      this.facialBones['foot_L'] = {
+        bone: leftFoot,
+        neutralPosition: leftFoot.position.clone(),
+        neutralRotation: leftFoot.rotation.clone(),
+        neutralScale: leftFoot.scale.clone()
+      };
+    }
+
+    if (rightFoot && !this.facialBones['foot_R']) {
+      this.facialBones['foot_R'] = {
+        bone: rightFoot,
+        neutralPosition: rightFoot.position.clone(),
+        neutralRotation: rightFoot.rotation.clone(),
+        neutralScale: rightFoot.scale.clone()
+      };
     }
   }
 
@@ -524,6 +564,9 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
       this.setupFallbackBones(gltf);
     }
 
+    // Initialiser les os des pieds
+    this.initFootBones();
+
     console.log('Bones detected:', this.facialBones);
   }
 
@@ -609,6 +652,7 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
 
   private applyExpression(expression: string): void {
     if (!this.modelLoaded) return;
+    // Transition douce vers la nouvelle expression
 
     this.clearEmotionEffects();
     this.resetBonesToNeutral();
@@ -1106,39 +1150,49 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
 
   private createSleepZzz(): void {
     const zzzGroup = new THREE.Group();
-    const fontLoader = new FontLoader();
 
-    fontLoader.load(
-      'assets/fonts/helvetiker_regular.typeface.json',
-      (font) => {
-        const zMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    // Créer des Z plus organiques
+    for (let i = 0; i < 3; i++) {
+      const zCurve = new THREE.CubicBezierCurve3(
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(0.2, 0.3, 0),
+        new THREE.Vector3(0.1, -0.3, 0),
+        new THREE.Vector3(0.3, 0, 0)
+      );
 
-        for (let i = 0; i < 3; i++) {
-          const zGeometry = new TextGeometry('Z', {
-            font: font,
-            size: 0.2,
-            height: 0.02,
-            curveSegments: 12,
-            bevelEnabled: false
-          });
+      const zGeometry = new THREE.TubeGeometry(zCurve, 20, 0.02, 8, false);
+      const zMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.7
+      });
 
-          const zMesh = new THREE.Mesh(zGeometry, zMaterial);
-          zMesh.position.set(
-            0.5 + i * 0.3,
-            1.5 + Math.random() * 0.2,
-            1
-          );
-          zzzGroup.add(zMesh);
-        }
-        this.scene.add(zzzGroup);
-        this.currentEmotionEffects.push(zzzGroup);
-      },
-      undefined,
-      (error) => {
-        console.error('Error loading font:', error);
-        this.createSimpleSleepZzz();
-      }
-    );
+      const zMesh = new THREE.Mesh(zGeometry, zMaterial);
+      zMesh.position.set(
+        0.5 + i * 0.4,
+        1.8 - i * 0.1,
+        1
+      );
+      zMesh.scale.set(0.8, 0.8, 0.8);
+
+      // Animation flottante
+      (zMesh as any).offset = Math.random() * Math.PI * 2;
+      (zMesh as any).speed = 1 + Math.random() * 0.5;
+
+      zzzGroup.add(zMesh);
+    }
+
+    this.scene.add(zzzGroup);
+    this.currentEmotionEffects.push(zzzGroup);
+
+    // Animer les Z
+    this.ambianceEffects['dormir'] = () => {
+      zzzGroup.children.forEach((zMesh, i) => {
+        const time = Date.now() * 0.001;
+        zMesh.position.y = 1.8 - i * 0.1 + Math.sin(time * (zMesh as any).speed + (zMesh as any).offset) * 0.05;
+        zMesh.rotation.z = Math.sin(time * 0.3 * (zMesh as any).speed) * 0.1;
+      });
+    };
   }
 
   private createSimpleSleepZzz(): void {

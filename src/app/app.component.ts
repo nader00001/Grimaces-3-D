@@ -9,16 +9,17 @@ export class AppComponent {
   title = 'facial-expression-translator';
 
   expressions = [
-    { key: 'rire', emoji: '😄', label: 'Rire' },
-    { key: 'triste', emoji: '😢', label: 'Triste' },
-    { key: 'neutre', emoji: '😐', label: 'Neutre' },
-    { key: 'surpris', emoji: '😯', label: 'Surpris' },
-    { key: 'colere', emoji: '😡', label: 'Colère' },
-    { key: 'degout', emoji: '🤢', label: 'Dégouté' },
-    { key: 'dormir', emoji: '😴', label: 'Dormir' },
-    { key: 'course', emoji: '🏃', label: 'Course' },
-    { key: 'jouer', emoji: '🎮', label: 'Jouer' }
+    { key: 'rire', emoji: '😄', label: 'يضحك' },
+    { key: 'triste', emoji: '😢', label: 'حزين' },
+    { key: 'neutre', emoji: '😐', label: 'محايد' },
+    { key: 'surpris', emoji: '😯', label: 'مندهش' },
+    { key: 'colere', emoji: '😡', label: 'غاضب' },
+    { key: 'degout', emoji: '🤢', label: 'مقزز' },
+    { key: 'dormir', emoji: '😴', label: 'نائم' },
+    { key: 'course', emoji: '🏃', label: 'يركض' },
+    { key: 'jouer', emoji: '🎮', label: 'يلعب' }
   ];
+
 
   availableModels = [
     { path: 'assets/models/n_anniversary_40.glb', name: 'Modèle 1' },
