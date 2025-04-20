@@ -49,7 +49,7 @@ interface CustomObject3D extends THREE.Object3D {
   styleUrls: ['./face-visualizer.component.scss']
 })
 export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDestroy {
-  @ViewChild('rendererCanvas') private canvasRef!: ElementRef<HTMLCanvasElement>;
+  @ViewChild('rendererCanvas') private readonly canvasRef!: ElementRef<HTMLCanvasElement>;
   @Input() expression!: string;
   @Input() modelPath = 'assets/models/n_anniversary_40.glb';
   @Input() showControls = true;
