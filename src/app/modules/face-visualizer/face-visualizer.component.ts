@@ -30,6 +30,11 @@ interface BoneTransform {
   scale?: THREE.Vector3;
 }
 
+interface TearObject extends THREE.Object3D {
+  velocity?: THREE.Vector3;
+  material: THREE.Material | THREE.PointsMaterial;
+}
+
 interface CustomObject3D extends THREE.Object3D {
   isSkinnedMesh?: boolean;
   skeleton?: {
@@ -84,17 +89,30 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
   private lastUpdateTime = 0;
   private updateInterval = 1000 / 60; // 60 FPS
 
+  private sleepZzzGroup?: THREE.Group;
+
   // Expressions configuration
   private expressionsConfig: Record<string, Record<string, BoneTransform>> = {
     'rire': {
-      'jaw': { rotation: new THREE.Euler(0.5, 0, 0) },
-      'brow_L': { rotation: new THREE.Euler(-0.3, 0, 0.1) },
-      'brow_R': { rotation: new THREE.Euler(-0.3, 0, -0.1) },
-      'eye_L': { rotation: new THREE.Euler(0, 0, -0.2) },
-      'eye_R': { rotation: new THREE.Euler(0, 0, 0.2) },
-      'cheek_L': { scale: new THREE.Vector3(1.2, 1, 1) },
-      'cheek_R': { scale: new THREE.Vector3(1.2, 1, 1) }
+    'jaw': {
+      rotation: new THREE.Euler(0.5, 0, 0),
+      position: new THREE.Vector3(0, -0.1, 0)
     },
+    'mouth': {
+      scale: new THREE.Vector3(1.3, 0.8, 1),
+      position: new THREE.Vector3(0, -0.05, 0)
+    },
+    'brow_L': { rotation: new THREE.Euler(-0.3, 0, 0.1) },
+    'brow_R': { rotation: new THREE.Euler(-0.3, 0, -0.1) },
+    'eye_L': { rotation: new THREE.Euler(0, 0, -0.2) },
+    'eye_R': { rotation: new THREE.Euler(0, 0, 0.2) },
+    'cheek_L': { scale: new THREE.Vector3(1.2, 1, 1) },
+    'cheek_R': { scale: new THREE.Vector3(1.2, 1, 1) },
+    'arm_L': { rotation: new THREE.Euler(-0.5, 0, -0.3) },
+    'arm_R': { rotation: new THREE.Euler(-0.5, 0, 0.3) },
+    'hand_L': { rotation: new THREE.Euler(0, 0, -0.5) },
+    'hand_R': { rotation: new THREE.Euler(0, 0, 0.5) }
+  },
     'triste': {
       'brow_L': { rotation: new THREE.Euler(0.4, 0.2, 0) },
       'brow_R': { rotation: new THREE.Euler(0.4, -0.2, 0) },
@@ -143,16 +161,23 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
       'mouth': { scale: new THREE.Vector3(1.1, 1.1, 1) }
     },
     'dormir': {
-      'eye_L': { scale: new THREE.Vector3(1, 0.1, 1) },
-      'eye_R': { scale: new THREE.Vector3(1, 0.1, 1) },
-      'head': { rotation: new THREE.Euler(0.1, 0, 0) },
-      'jaw': { rotation: new THREE.Euler(-0.1, 0, 0) },
-      'brow_L': { rotation: new THREE.Euler(0.1, 0, 0) },
-      'brow_R': { rotation: new THREE.Euler(0.1, 0, 0) },
-      // Ajouter la configuration pour les pieds
-      'foot_L': { rotation: new THREE.Euler(0.2, 0, 0) }, // Rotation vers l'extérieur
-      'foot_R': { rotation: new THREE.Euler(0.2, 0, 0) }  // Rotation vers l'extérieur
-    }
+  'eye_L': { scale: new THREE.Vector3(1, 0.1, 1) },
+  'eye_R': { scale: new THREE.Vector3(1, 0.1, 1) },
+  'head': { rotation: new THREE.Euler(0.1, 0, 0) },
+  'jaw': { rotation: new THREE.Euler(-0.1, 0, 0) },
+  'brow_L': { rotation: new THREE.Euler(0.1, 0, 0) },
+  'brow_R': { rotation: new THREE.Euler(0.1, 0, 0) },
+  'foot_L': {
+    rotation: new THREE.Euler(0.2, 0, 0),
+    position: new THREE.Vector3(0, -0.1, 0)
+  },
+  'foot_R': {
+    rotation: new THREE.Euler(0.2, 0, 0),
+    position: new THREE.Vector3(0, -0.1, 0)
+  },
+  'leg_L': { rotation: new THREE.Euler(-0.1, 0, 0) },
+  'leg_R': { rotation: new THREE.Euler(-0.1, 0, 0) }
+}
   };
 
   // Ambiance effects
@@ -161,7 +186,8 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
     'jouer': this.createPlayfulBubbles.bind(this),
     'dormir': this.createSleepZzz.bind(this),
     'colere': this.createAngerParticles.bind(this),
-    'surpris': this.createSparkleParticles.bind(this)
+    'surpris': this.createSparkleParticles.bind(this),
+    'rire': this.createLaughingEffect.bind(this)
   };
 
   ngAfterViewInit(): void {
@@ -327,7 +353,99 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
       case 'jouer':
         this.simulatePlaying();
         break;
+      case 'rire':
+        this.simulateLaughing();
+        break;
     }
+  }
+
+
+  private simulateLaughing(): void {
+    const time = Date.now() * 0.005;
+    const laughIntensity = Math.sin(time * 3) * 0.1 + 0.9; // Oscillation entre 0.8 et 1.0
+
+    // Animation de la mâchoire et de la bouche
+    const jaw = this.findBone('jaw') || this.findBone('mouth');
+    if (jaw) {
+      jaw.rotation.x = 0.5 + Math.sin(time * 4) * 0.1; // Mouvement de bouche dynamique
+      jaw.position.y = -0.1 + Math.sin(time * 5) * 0.02; // Léger mouvement vertical
+    }
+
+    // Animation des joues
+    const cheekL = this.findBone('cheek_L');
+    const cheekR = this.findBone('cheek_R');
+    if (cheekL && cheekR) {
+      const cheekScale = 1.2 * laughIntensity;
+      cheekL.scale.set(cheekScale, 1, 1);
+      cheekR.scale.set(cheekScale, 1, 1);
+    }
+
+    // Animation des bras et mains
+    const leftArm = this.findBone('leftArm') || this.findBone('arm_L');
+    const rightArm = this.findBone('rightArm') || this.findBone('arm_R');
+    const leftHand = this.findBone('leftHand') || this.findBone('hand_L');
+    const rightHand = this.findBone('rightHand') || this.findBone('hand_R');
+
+    if (leftArm && rightArm && leftHand && rightHand) {
+      leftArm.rotation.x = -0.5 + Math.sin(time) * 0.1;
+      rightArm.rotation.x = -0.5 + Math.sin(time) * 0.1;
+      leftHand.rotation.z = -0.5 + Math.sin(time * 1.5) * 0.2;
+      rightHand.rotation.z = 0.5 + Math.sin(time * 1.5) * 0.2;
+    }
+
+    // Animation de la tête
+    const head = this.findBone('head');
+    if (head) {
+      head.rotation.y = Math.sin(time * 0.3) * 0.05;
+      head.rotation.x = Math.sin(time * 0.5) * 0.02;
+    }
+  }
+
+
+  private createLaughingEffect(): void {
+    const laughParticles = new THREE.Group();
+
+    // Créer des particules en forme de notes de musique ou d'étoiles
+    for (let i = 0; i < 20; i++) {
+      // Alterner entre sphères et étoiles
+      const geometry = Math.random() > 0.5
+        ? new THREE.SphereGeometry(0.05 + Math.random() * 0.03, 8, 8)
+        : new THREE.SphereGeometry(0.03, 5, 5); // Étoiles simplifiées
+
+      const material = new THREE.MeshBasicMaterial({
+        color: 0xffff00,
+        transparent: true,
+        opacity: 0.8
+      });
+      const particle = new THREE.Mesh(geometry, material);
+
+      // Position autour de la bouche
+      particle.position.set(
+        (Math.random() * 1.5 - 0.75),
+        -0.5 + (Math.random() * 0.5),
+        (Math.random() * 0.5) + 0.5
+      );
+
+      // Animation aléatoire plus dynamique
+      (particle as any).speed = new THREE.Vector3(
+        (Math.random() - 0.5) * 0.02,
+        Math.random() * 0.05 + 0.03,
+        (Math.random() - 0.5) * 0.01
+      );
+
+      // Rotation aléatoire
+      (particle as any).rotationSpeed = new THREE.Vector3(
+        Math.random() * 0.02,
+        Math.random() * 0.02,
+        Math.random() * 0.02
+      );
+
+      laughParticles.add(particle);
+    }
+
+    this.scene.add(laughParticles);
+    this.currentEmotionEffects.push(laughParticles);
+    this.particleSystems.push(laughParticles);
   }
 
   private simulateRunning(): void {
@@ -357,6 +475,8 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
     const head = this.findBone('head');
     const leftFoot = this.findBone('leftFoot') || this.findBone('foot_L');
     const rightFoot = this.findBone('rightFoot') || this.findBone('foot_R');
+    const leftLeg = this.findBone('leftLeg') || this.findBone('leg_L');
+    const rightLeg = this.findBone('rightLeg') || this.findBone('leg_R');
 
     if (chest && head) {
       const time = Date.now() * 0.001;
@@ -368,13 +488,17 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
       head.rotation.x = 0.1 + Math.sin(time * 0.5) * 0.01;
     }
 
-    // Animation des pieds pour qu'ils restent horizontaux
-    if (leftFoot && rightFoot) {
+    // Animation des jambes et pieds pour une position plus naturelle
+    if (leftFoot && rightFoot && leftLeg && rightLeg) {
       const time = Date.now() * 0.001;
-      const footMovement = Math.sin(time * 0.5) * 0.05;
+      const footMovement = Math.sin(time * 0.5) * 0.02;
 
       leftFoot.rotation.x = 0.2 + footMovement;
       rightFoot.rotation.x = 0.2 + footMovement;
+
+      // Légère rotation des jambes pour un effet plus naturel
+      leftLeg.rotation.x = -0.1 + footMovement * 0.5;
+      rightLeg.rotation.x = -0.1 + footMovement * 0.5;
     }
   }
   private initFootBones(): void {
@@ -475,6 +599,7 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
 
   private handleModelLoaded(gltf: any): void {
     console.group('Model Loading Debug');
+    this.logAvailableBones(); // Ajoutez cette ligne
     try {
       console.log('GLTF content:', gltf);
       console.log('Scene children:', gltf.scene.children);
@@ -489,6 +614,7 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
       this.createEnvironment();
       this.scene.add(this.faceModel);
       this.initFacialRig(gltf);
+      this.initFootBones();
       this.normalizeModelSize();
       this.modelLoaded = true;
       this.loadingProgress = 100;
@@ -567,7 +693,33 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
     // Initialiser les os des pieds
     this.initFootBones();
 
+  // Initialiser les os des bras et mains
+    this.initArmBones();
+
+
     console.log('Bones detected:', this.facialBones);
+  }
+
+
+  private initArmBones(): void {
+    const bonesToInit = [
+      { name: 'leftArm', key: 'arm_L' },
+      { name: 'rightArm', key: 'arm_R' },
+      { name: 'leftHand', key: 'hand_L' },
+      { name: 'rightHand', key: 'hand_R' }
+    ];
+
+    bonesToInit.forEach(({name, key}) => {
+      const bone = this.findBone(name) || this.findBone(key);
+      if (bone && !this.facialBones[key]) {
+        this.facialBones[key] = {
+          bone: bone,
+          neutralPosition: bone.position.clone(),
+          neutralRotation: bone.rotation.clone(),
+          neutralScale: bone.scale.clone()
+        };
+      }
+    });
   }
 
   private detectStandardBones(gltf: any): void {
@@ -578,7 +730,11 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
       { regex: /mouth|lip/i, key: 'mouth' },
       { regex: /cheek/i, key: 'cheek' },
       { regex: /head|neck/i, key: 'head' },
-      { regex: /nose/i, key: 'nose' }
+      { regex: /nose/i, key: 'nose' },
+      { regex: /arm|upperarm|shoulder/i, key: 'arm' },
+      { regex: /hand|wrist|palm/i, key: 'hand' },
+      { regex: /leg|thigh/i, key: 'leg' },
+      { regex: /foot|ankle/i, key: 'foot' }
     ];
 
     gltf.scene.traverse((child: THREE.Object3D) => {
@@ -668,10 +824,47 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
       this.playAnimation(expression);
     }
 
+    if (Object.keys(this.facialBones).length === 0) {
+      this.applyExpressionToMesh(expression);
+      return;
+    }
+
     // Appliquer les transformations et effets
     this.applyBoneTransforms(expression);
     this.applySpecialEffects(expression);
     this.updateSkeleton();
+  }
+
+  private applyExpressionToMesh(expression: string): void {
+    // Animation basée sur les morph targets ou la transformation du mesh
+    this.faceModel.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh;
+
+        switch(expression) {
+          case 'rire':
+            // Exemple: déformer le mesh pour un sourire
+            if (mesh.morphTargetInfluences && mesh.morphTargetInfluences.length > 0) {
+              // Utiliser les morph targets si disponibles
+              mesh.morphTargetInfluences[0] = 1.0; // Index à adapter
+            } else {
+              // Sinon, transformation manuelle
+              mesh.rotation.x = 0.1;
+              mesh.scale.set(1.1, 1, 1);
+            }
+            break;
+          // ... autres expressions ...
+        }
+      }
+    });
+
+    // Ajouter des effets visuels
+    switch(expression) {
+      case 'rire':
+        this.createLaughingEffect();
+        break;
+      // ... autres effets ...
+    }
   }
 
   private playAnimation(animationName: string): void {
@@ -782,12 +975,16 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
 
   private tryAlternativeBoneNames(expression: string, config: Record<string, BoneTransform>, missingBones: string[]): void {
     const boneNameVariations: Record<string, string[]> = {
-      'brow_L': ['browLeft', 'eyebrow_l', 'leftBrow', 'brow.L', 'brow_Left'],
-      'brow_R': ['browRight', 'eyebrow_r', 'rightBrow', 'brow.R', 'brow_Right'],
-      'eyeLidUpper_L': ['upperLid_L', 'eyelidUpper_L', 'lidUpper_L', 'eyeLid.L', 'eyelidLeft'],
-      'eyeLidUpper_R': ['upperLid_R', 'eyelidUpper_R', 'lidUpper_R', 'eyeLid.R', 'eyelidRight'],
-      'jaw': ['jaw', 'chin', 'mandible', 'lowerJaw'],
-      'mouth': ['mouth', 'lips', 'oral', 'mouthCorner']
+      'brow_L': ['browLeft', 'eyebrow_l', 'leftBrow', 'brow.L', 'brow_Left', 'LeftBrow'],
+      'brow_R': ['browRight', 'eyebrow_r', 'rightBrow', 'brow.R', 'brow_Right', 'RightBrow'],
+      'eye_L': ['eyeLeft', 'leftEye', 'eye.L', 'eye_Left', 'LeftEye'],
+      'eye_R': ['eyeRight', 'rightEye', 'eye.R', 'eye_Right', 'RightEye'],
+      'cheek_L': ['cheekLeft', 'leftCheek', 'cheek.L', 'cheek_Left'],
+      'cheek_R': ['cheekRight', 'rightCheek', 'cheek.R', 'cheek_Right'],
+      'arm_L': ['leftArm', 'armLeft', 'upperarm_l', 'LeftArm', 'Arm_L'],
+      'arm_R': ['rightArm', 'armRight', 'upperarm_r', 'RightArm', 'Arm_R'],
+      'hand_L': ['leftHand', 'handLeft', 'hand_l', 'LeftHand', 'Hand_L'],
+      'hand_R': ['rightHand', 'handRight', 'hand_r', 'RightHand', 'Hand_R']
     };
 
     missingBones.forEach(boneType => {
@@ -835,9 +1032,15 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
       case 'degout':
         this.addDisgustEffect();
         break;
+      case 'rire':
+        this.addLaughEffect();
+        break;
     }
   }
 
+  private addLaughEffect(): void {
+    // Vous pouvez ajouter des effets supplémentaires ici si nécessaire
+  }
   private updateSkeleton(): void {
     const skeleton = (this.faceModel as any).mainSkeleton;
     if (skeleton) {
@@ -852,43 +1055,40 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
   }
 
   private addTears(): void {
-    // Vérifier si les os des yeux existent pour positionner correctement les larmes
     const leftEye = this.findBone('eye_L') || this.findBone('leftEye');
     const rightEye = this.findBone('eye_R') || this.findBone('rightEye');
 
-    const tearCount = 5; // Augmenter le nombre de larmes
-    const tearSize = 0.08; // Taille des larmes
-    const tearOpacity = 0.8; // Opacité des larmes
+    // Créer un mélange de larmes normales et bleues
+    const tearCount = 12; // Augmenter le nombre pour un effet plus visible
 
     for (let i = 0; i < tearCount; i++) {
-      const tear = this.createTearMesh(tearSize, tearOpacity);
+      // 70% de chance de créer une larme bleue, 30% une larme normale
+      const isBlueTear = Math.random() > 0.3;
+      const tear = isBlueTear ? this.createBlueTear() : this.createTearMesh(0.07, 0.8);
 
-      // Positionner les larmes sous les yeux si les os sont trouvés
-      if (leftEye && rightEye) {
-        const eyePosition = i % 2 === 0 ?
-          leftEye.getWorldPosition(new THREE.Vector3()) :
-          rightEye.getWorldPosition(new THREE.Vector3());
+      // Position aléatoire sous les yeux
+      const eyePosition = (i % 2 === 0 && leftEye) ?
+        leftEye.getWorldPosition(new THREE.Vector3()) :
+        (rightEye ? rightEye.getWorldPosition(new THREE.Vector3()) : new THREE.Vector3(0, 0, 0));
 
-        tear.position.set(
-          eyePosition.x + (Math.random() * 0.2 - 0.1),
-          eyePosition.y - 0.3 - (Math.random() * 0.2),
-          eyePosition.z + 0.1
-        );
-      } else {
-        // Position par défaut si les os des yeux ne sont pas trouvés
-        tear.position.set(
-          -0.3 + Math.random() * 0.6,
-          -1.0 - Math.random() * 0.3,
-          1.1 + Math.random() * 0.2
-        );
-      }
+      tear.position.set(
+        eyePosition.x + (Math.random() * 0.4 - 0.2), // Plus large dispersion
+        eyePosition.y - 0.1 - (Math.random() * 0.4),
+        eyePosition.z + 0.1 + (Math.random() * 0.1)
+      );
 
-      // Animation des larmes
+      // Animation plus dynamique pour les larmes bleues
       (tear as any).velocity = new THREE.Vector3(
-        0,
-        -0.02 - Math.random() * 0.03,
+        isBlueTear ? (Math.random() - 0.5) * 0.03 : 0, // Mouvement latéral aléatoire
+        -0.06 - Math.random() * 0.04, // Descente plus rapide
         0
       );
+
+      // Ajouter un effet de scintillement aux larmes bleues
+      if (isBlueTear) {
+        (tear as any).pulseSpeed = 2 + Math.random() * 3;
+        (tear as any).baseSize = tear.scale.clone();
+      }
 
       this.scene.add(tear);
       this.tears.push(tear);
@@ -896,6 +1096,20 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
     }
   }
 
+  private createBlueTear(): THREE.Mesh {
+    const geometry = new THREE.SphereGeometry(0.04, 16, 16);
+    const material = new THREE.MeshPhongMaterial({
+      color: 0x00FFFF,
+      transparent: true,
+      opacity: 0.9,
+      specular: 0xFFFFFF, // Plus de brillance
+      shininess: 50,
+      emissive: 0x008080, // Légère émission de lumière
+      emissiveIntensity: 0.3
+    });
+
+    return new THREE.Mesh(geometry, material);
+  }
 
   private createTearMesh(size: number, opacity: number): THREE.Mesh {
     // Utiliser une géométrie de larme plus réaliste (cône à la place d'une sphère)
@@ -1008,10 +1222,14 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
     // Mise à jour des systèmes de particules existants
     this.particleSystems.forEach(group => {
       group.children.forEach(particle => {
-        particle.position.y += 0.01;
-        particle.scale.x *= 0.99;
-        particle.scale.y *= 0.99;
-        particle.scale.z *= 0.99;
+      if ((particle as any).speed) {
+        particle.position.add((particle as any).speed);
+      }
+      if ((particle as any).rotationSpeed) {
+        particle.rotation.x += (particle as any).rotationSpeed.x;
+        particle.rotation.y += (particle as any).rotationSpeed.y;
+        particle.rotation.z += (particle as any).rotationSpeed.z;
+      }
 
         if ((particle as THREE.Mesh).material instanceof THREE.Material) {
           const mat = (particle as THREE.Mesh).material as THREE.Material & { opacity?: number };
@@ -1058,6 +1276,22 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
     // Ajouter de nouvelles larmes périodiquement si l'expression est toujours "triste"
     if (this.expression === 'triste' && this.tears.length < 3 && Math.random() > 0.9) {
       this.addTears();
+    }
+
+    if (this.sleepZzzGroup && this.expression === 'dormir') {
+      const time = Date.now() * 0.001;
+      this.sleepZzzGroup.children.forEach((zMesh, i) => {
+        const z = zMesh as THREE.Mesh & { offset: number, speed: number, startY: number };
+        z.position.y = z.startY + Math.sin(time * z.speed + z.offset) * 0.05;
+        z.rotation.z = Math.sin(time * 0.3 * z.speed) * 0.1;
+        z.position.x += 0.01;
+
+        // Réapparition si le Z sort de l'écran
+        if (z.position.x > 2) {
+          z.position.x = -1;
+          z.position.y = 1.8 - i * 0.1;
+        }
+      });
     }
   }
 
@@ -1151,7 +1385,7 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
   private createSleepZzz(): void {
     const zzzGroup = new THREE.Group();
 
-    // Créer des Z plus organiques
+    // Créer des Z plus organiques avec une animation
     for (let i = 0; i < 3; i++) {
       const zCurve = new THREE.CubicBezierCurve3(
         new THREE.Vector3(0, 0, 0),
@@ -1178,6 +1412,7 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
       // Animation flottante
       (zMesh as any).offset = Math.random() * Math.PI * 2;
       (zMesh as any).speed = 1 + Math.random() * 0.5;
+      (zMesh as any).startY = zMesh.position.y;
 
       zzzGroup.add(zMesh);
     }
@@ -1185,14 +1420,8 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
     this.scene.add(zzzGroup);
     this.currentEmotionEffects.push(zzzGroup);
 
-    // Animer les Z
-    this.ambianceEffects['dormir'] = () => {
-      zzzGroup.children.forEach((zMesh, i) => {
-        const time = Date.now() * 0.001;
-        zMesh.position.y = 1.8 - i * 0.1 + Math.sin(time * (zMesh as any).speed + (zMesh as any).offset) * 0.05;
-        zMesh.rotation.z = Math.sin(time * 0.3 * (zMesh as any).speed) * 0.1;
-      });
-    };
+    // Stocker la référence pour l'animation
+    this.sleepZzzGroup = zzzGroup;
   }
 
   private createSimpleSleepZzz(): void {
@@ -1373,4 +1602,17 @@ export class FaceVisualizerComponent implements AfterViewInit, OnChanges, OnDest
 
     console.log(`Model normalized - Scale factor: ${scale}`);
   }
+
+
+  private logAvailableBones(): void {
+    const bones: string[] = [];
+    this.faceModel?.traverse((child) => {
+      if ((child as THREE.Bone).isBone) {
+        bones.push(child.name);
+      }
+    });
+    console.log('Bones available in model:', bones);
+  }
+
+
 }
