@@ -15,7 +15,6 @@ export class AppComponent {
     { key: 'surpris', emoji: '😯', label: 'مندهش' },
     { key: 'colere', emoji: '😡', label: 'غاضب' },
     { key: 'degout', emoji: '🤢', label: 'مقزز' },
-    { key: 'dormir', emoji: '😴', label: 'نائم' },
     { key: 'course', emoji: '🏃', label: 'يركض' },
     { key: 'jouer', emoji: '🎮', label: 'يلعب' }
   ];
